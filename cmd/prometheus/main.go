@@ -855,6 +855,7 @@ func main() {
 	*/
 	//服务组件配置应用
 	//除了服务组件ruleManager用的方法是Update，其他服务组件的在匿名函数中通过各自的ApplyConfig方法，实现配置的管理。
+	// 所有的 服务都在这里配置，后续会有一个方法将所有都启动，所以看完main函数后，去看每一个模块的AppliConfig
 	reloaders := []reloader{
 		{
 			name:     "db_storage",
@@ -901,6 +902,7 @@ func main() {
 				for _, v := range scfgs {
 					c[v.JobName] = v.ServiceDiscoveryConfigs
 				}
+				// 服务发现 配置
 				return discoveryManagerScrape.ApplyConfig(c)
 			},
 		}, {
