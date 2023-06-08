@@ -154,14 +154,19 @@ func (m *Manager) SyncCh() <-chan map[string][]*targetgroup.Group {
 
 // ApplyConfig removes all running discovery providers and starts new ones using the provided config.
 func (m *Manager) ApplyConfig(cfg map[string]discovery.Configs) error {
+	// 加锁
 	m.mtx.Lock()
+	// 函数结束后 解锁
 	defer m.mtx.Unlock()
 
+	// 遍历已存在的target
 	for pk := range m.targets {
 		if _, ok := cfg[pk.setName]; !ok {
+			// 删除标签
 			discoveredTargets.DeleteLabelValues(m.name, pk.setName)
 		}
 	}
+	// 取消所有Discoverer
 	m.cancelDiscoverers()
 	m.targets = make(map[poolKey]map[string]*targetgroup.Group)
 	m.providers = nil
@@ -169,12 +174,15 @@ func (m *Manager) ApplyConfig(cfg map[string]discovery.Configs) error {
 
 	failedCount := 0
 	for name, scfg := range cfg {
+		// 根据scfg，注册服务发现实例
 		failedCount += m.registerProviders(scfg, name)
+		// 设置标签
 		discoveredTargets.WithLabelValues(m.name, name).Set(0)
 	}
 	failedConfigs.WithLabelValues(m.name).Set(float64(failedCount))
 
 	for _, prov := range m.providers {
+		// 启动服务发现实例
 		m.startProvider(m.ctx, prov)
 	}
 
@@ -195,11 +203,13 @@ func (m *Manager) StartCustomProvider(ctx context.Context, name string, worker d
 func (m *Manager) startProvider(ctx context.Context, p *provider) {
 	level.Debug(m.logger).Log("msg", "Starting provider", "provider", p.name, "subs", fmt.Sprintf("%v", p.subs))
 	ctx, cancel := context.WithCancel(ctx)
+	// 记录发现的服务
 	updates := make(chan []*targetgroup.Group)
-
+	// 添加取消方法
 	m.discoverCancel = append(m.discoverCancel, cancel)
-
+	// 执行run  每个服务发现都有自己的run方法。
 	go p.d.Run(ctx, updates)
+	// 更新发现的服务
 	go m.updater(ctx, p, updates)
 }
 
@@ -297,19 +307,27 @@ func (m *Manager) allGroups() map[string][]*targetgroup.Group {
 
 // registerProviders returns a number of failed SD config.
 func (m *Manager) registerProviders(cfgs discovery.Configs, setName string) int {
+	// 标签
 	var (
 		failed int
 		added  bool
 	)
+	// 加载Providers的add方法
 	add := func(cfg discovery.Config) {
+		// 读取cfg类型
 		for _, p := range m.providers {
+			// 检查该cfg是否加载过
 			if reflect.DeepEqual(cfg, p.config) {
+				// 如果加载过，记录该Job
 				p.subs = append(p.subs, setName)
+				// 变更标签状态
 				added = true
+				// 跳出
 				return
 			}
 		}
 		typ := cfg.Name()
+		// 创建一个Discoverer实例
 		d, err := cfg.NewDiscoverer(discovery.DiscovererOptions{
 			Logger: log.With(m.logger, "discovery", typ, "config", setName),
 		})
@@ -318,12 +336,18 @@ func (m *Manager) registerProviders(cfgs discovery.Configs, setName string) int 
 			failed++
 			return
 		}
+		// 添加该provider到m.provider队列中
 		m.providers = append(m.providers, &provider{
-			name:   fmt.Sprintf("%s/%d", typ, len(m.providers)),
-			d:      d,
+			// 生成provider名称
+			name: fmt.Sprintf("%s/%d", typ, len(m.providers)),
+			// 关联对应的Discoverer实例， （比如DNS，zk，K8等）
+			d: d,
+			// 关联配置
 			config: cfg,
-			subs:   []string{setName},
+			// 关联job
+			subs: []string{setName},
 		})
+		// 更新标签
 		added = true
 	}
 	for _, cfg := range cfgs {
