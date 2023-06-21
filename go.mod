@@ -37,7 +37,7 @@ require (
 	github.com/klauspost/compress v1.13.6
 	github.com/kolo/xmlrpc v0.0.0-20220921171641-a4b6fa1dd06b
 	github.com/linode/linodego v1.16.1
-	github.com/miekg/dns v1.1.53
+	github.com/miekg/dns v1.1.55
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 	github.com/oklog/run v1.1.0
 	github.com/oklog/ulid v1.3.1
